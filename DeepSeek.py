@@ -1,17 +1,17 @@
-import os
-import PyPDF2
-import docx2txt
-import streamlit as st
 import numpy as np
+import streamlit as st
+import PyPDF2, docx2txt, faiss
 from langchain_ollama import OllamaLLM
 from langchain.embeddings import HuggingFaceEmbeddings
-import faiss
-# from llama_index.llms import LangchainLLM
+from langchain_core.prompts import ChatPromptTemplate
+from langchain_text_splitters import RecursiveCharacterTextSplitter
+
 
 #initialize the session state
 if 'document' not in st.session_state:
     st.session_state['documents']=[]
     st.session_state['faiss_index'] = None
+    st.session_state['chunks']=[]
 
 st.title('Document chatbot')
 st.write('Upload your documents and ask questions about your document')
@@ -54,6 +54,8 @@ if st.session_state['documents'] and not st.session_state['faiss_index']:
         with open(doc, "r", encoding="utf-8") as f:
             text_data += f.read()
 
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=100)
+    text_chunks = text_splitter.split_text(text_data)
     embed_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     embeddings = embed_model.embed_documents([text_data])
     embeddings = np.array(embeddings).astype(np.float32)
@@ -61,6 +63,15 @@ if st.session_state['documents'] and not st.session_state['faiss_index']:
     faiss_index = faiss.IndexFlatL2(dimension)
     faiss_index.add(embeddings)
     st.session_state['faiss_index'] = faiss_index
+
+prompt_template = ChatPromptTemplate.from_template(
+    "Context: {context}\n\nUser Query: {query}\n\n"
+    "Instructions: You are an AI chabtot expert designedt to process that has been given to you."
+    "You are supposed to process the docuement and the query prompted by the user."
+    "You will have to go through the processed document, and return the answer which is very close to query that has been asked by the user. "
+    "If the user asks a question and that is not related to the content of the document uploaded, you respond with the phrase: "
+    "'This question is not aligned with the context of the document uploaded.'"
+)
 
 #Building the face of the app
 query=st.text_input('Ask your question about your documents')
@@ -73,6 +84,7 @@ if query and st.session_state['faiss_index']:
         doc_text = text_data
     
     llm = OllamaLLM(model="deepseek-r1:1.5b")
+    formatted_prompt = prompt_template.format(context=doc_text, query=query)
     response = llm.predict(f"Context: {doc_text}\n\nUser Query: {query}")
     
     st.write("### Answer:")
