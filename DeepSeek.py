@@ -13,8 +13,8 @@ if 'document' not in st.session_state:
     st.session_state['faiss_index'] = None
     st.session_state['chunks']=[]
 
-st.title('Document chatbot')
-st.write('Upload your documents and ask questions about your document')
+st.title('Hello Human :)')
+st.write('How can I help you today?')
 
 with st.sidebar:
     # Document upload in the sidebar
@@ -36,16 +36,17 @@ def extract_text_from_docs(docs_file):
 
 if files_upload:
     text_data=''
-    for file in files_upload:
-        if file.type == "application/pdf":
-            text_data += extract_text_from_pdf(file)
-        elif file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-            text_data += extract_text_from_docs(file)
-    if text_data:
-        with open("documents/temp.txt", "w", encoding="utf-8") as f:
-            f.write(text_data)
-        st.session_state['documents'].append("documents/temp.txt")
-        st.success("Documents processed successfully!")
+    with st.spinner("Processing Documents..."):
+        for file in files_upload:
+            if file.type == "application/pdf":
+                text_data += extract_text_from_pdf(file)
+            elif file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                text_data += extract_text_from_docs(file)
+        if text_data:
+            with open("documents/temp.txt", "w", encoding="utf-8") as f:
+                f.write(text_data)
+            st.session_state['documents'].append("documents/temp.txt")
+    st.success("Documents processed successfully!")
 
 #initialize the embeddings
 if st.session_state['documents'] and not st.session_state['faiss_index']:
@@ -54,7 +55,7 @@ if st.session_state['documents'] and not st.session_state['faiss_index']:
         with open(doc, "r", encoding="utf-8") as f:
             text_data += f.read()
 
-    text_splitter = RecursiveCharacterTextSplitter(chunk_size=300, chunk_overlap=100)
+    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=100)
     text_chunks = text_splitter.split_text(text_data)
     embed_model = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     embeddings = embed_model.embed_documents([text_data])
